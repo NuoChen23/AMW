@@ -1,0 +1,78 @@
+import os
+import librosa
+import librosa.display
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+audio_dir = r'D:\project\Mel\WAV'
+spectrogram_dir = r'D:\project\Mel'
+
+
+os.makedirs(spectrogram_dir, exist_ok=True)
+
+# pitch shifting
+shift_steps = [0.5, 1]
+
+# time shifting
+time_shifts = [0.1] 
+for audio_file in os.listdir(audio_dir):
+    audio_path = os.path.join(audio_dir, audio_file)
+    audio, sr = librosa.load(audio_path)
+
+    # Mel
+    spectrogram = librosa.feature.melspectrogram(audio, sr=sr, fmax=3000)
+    log_spectrogram = librosa.power_to_db(spectrogram, ref=np.max)
+
+    mel_frequencies = librosa.core.mel_frequencies(n_mels=log_spectrogram.shape[0])
+    y_coords = np.linspace(0, 3000, len(mel_frequencies))
+
+
+    plt.figure(figsize=(10, 4))
+    librosa.display.specshow(log_spectrogram, sr=sr, x_axis='time', y_axis='mel', y_coords=y_coords)
+    plt.colorbar(format='%+2.0f dB')
+    plt.title('Mel Spectrogram')
+    plt.tight_layout()
+
+    file_name = os.path.splitext(audio_file)[0]
+
+    save_path = os.path.join(spectrogram_dir, f'{file_name}.png')
+
+    plt.savefig(save_path)
+    plt.close()
+
+    for shift_step in shift_steps:
+        # 进行pitch shifting
+        shifted_audio = librosa.effects.pitch_shift(audio, sr, shift_step)
+
+        shifted_spectrogram = librosa.feature.melspectrogram(shifted_audio, sr=sr, fmax=3000)
+        shifted_log_spectrogram = librosa.power_to_db(shifted_spectrogram, ref=np.max)
+
+
+
+        plt.figure(figsize=(10, 4))
+        librosa.display.specshow(shifted_log_spectrogram, sr=sr, x_axis='time', y_axis='mel', y_coords=y_coords)
+        plt.colorbar(format='%+2.0f dB')
+        plt.title('Mel Spectrogram (pitch shift)')
+        plt.tight_layout()
+
+        shifted_save_path = os.path.join(spectrogram_dir, f'{file_name}_shifted_{shift_step}.png')
+
+        plt.savefig(shifted_save_path)
+        plt.close()
+
+    for time_shift in time_shifts:
+        # 进行time shifting
+        shifted_spectrogram = np.roll(log_spectrogram, int(sr * time_shift), axis=1)
+
+
+        plt.figure(figsize=(10, 4))
+        librosa.display.specshow(shifted_spectrogram, sr=sr, x_axis='time', y_axis='mel', y_coords=y_coords)
+        plt.colorbar(format='%+2.0f dB')
+        plt.title('Mel Spectrogram (time shift)')
+        plt.tight_layout()
+
+        shifted_save_path = os.path.join(spectrogram_dir, f'{file_name}_shifted_{time_shift}.png')
+
+        plt.savefig(shifted_save_path)
+        plt.close()
