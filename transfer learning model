@@ -1,0 +1,112 @@
+import numpy as np
+from tensorflow.keras.applications import ResNet50
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout, Flatten
+from tensorflow.keras.optimizers import SGD
+import tensorflow as tf
+import pandas as pd
+import json
+import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings("ignore") 
+
+
+num_classes = 2
+batch_size = 8
+epochs = 100
+image_size = 224
+
+train_datagen = ImageDataGenerator(
+    rotation_range = 20,     # 随机旋转度数
+    width_shift_range = 0.1, # 随机水平平移
+    height_shift_range = 0.1,# 随机竖直平移
+    rescale = 1/255,         # 数据归一化
+    shear_range = 10,       # 随机错切变换
+    zoom_range = 0.1,        # 随机放大
+    horizontal_flip = True,  # 水平翻转
+    brightness_range=(0.7, 1.3), # 亮度变化
+    fill_mode = 'nearest',   # 填充方式
+)
+
+val_datagen = ImageDataGenerator(
+    rescale = 1/255,         
+)
+
+
+train_generator = train_datagen.flow_from_directory(
+    'D:\project\combination\TrainSet',
+    target_size=(image_size,image_size),
+    batch_size=batch_size,
+    )
+
+
+val_generator = val_datagen.flow_from_directory(
+    'D:\project\combination\ValidationSet',
+    target_size=(image_size,image_size),
+    batch_size=batch_size,
+    )
+
+
+class_indices = train_generator.class_indices
+inverse_dict = dict((val, key) for key, val in class_indices.items())
+json_str = json.dumps(inverse_dict, indent=4)
+with open('class_indices.json', 'w') as json_file:
+    json_file.write(json_str)
+print(class_indices)
+
+
+base_model = ResNet50(weights='imagenet',include_top=False, input_shape=(image_size,image_size,3))
+
+
+top_model = Sequential()
+top_model.add(Flatten(input_shape=base_model.output_shape[1:]))
+top_model.add(Dense(256,activation='relu'))
+top_model.add(Dropout(0.2))
+
+top_model.add(Dense(num_classes,activation='softmax'))
+model = Sequential()
+model.add(base_model)
+model.add(top_model)
+
+callbacks1 = tf.keras.callbacks.ModelCheckpoint(
+    filepath='1e5ResNet50.h5', monitor='val_accuracy', verbose=0, save_best_only=True,
+    save_weights_only=False, mode='auto', save_freq='epoch')
+
+
+sgd = SGD(lr=2e-4)
+model.compile(optimizer=sgd,loss='categorical_crossentropy',metrics=['accuracy'])
+
+
+history = model.fit(x=train_generator,epochs=epochs,validation_data=val_generator,callbacks=callbacks1)
+
+a = pd.DataFrame(history.history['accuracy'],columns=['train_accuracy'])
+b = pd.DataFrame(history.history['val_accuracy'],columns=['val_accuracy'])
+c = pd.DataFrame(history.history['loss'],columns=['train_loss'])
+d = pd.DataFrame(history.history['val_loss'],columns=['val_loss'])
+aa = pd.concat([a,b,c,d],axis=1)
+aa.to_excel('data.xlsx',index=False)
+
+aa.head()
+
+# acc curve
+plt.rcParams.update({'font.size': 12})
+plt.figure(dpi=300)
+plt.plot(np.arange(epochs),history.history['accuracy'],c='b',label='train_accuracy')
+plt.plot(np.arange(epochs),history.history['val_accuracy'],c='y',label='val_accuracy')
+plt.legend()
+plt.xlabel('epochs')
+plt.ylabel('accuracy')
+plt.savefig('accuracy.png',dpi=300,bbox_inches = 'tight')
+plt.show()
+
+
+# loss curve
+plt.figure(dpi=300)
+plt.plot(np.arange(epochs),history.history['loss'],c='b',label='train_loss')
+plt.plot(np.arange(epochs),history.history['val_loss'],c='y',label='val_loss')
+plt.legend()
+plt.xlabel('epochs')
+plt.ylabel('loss')
+plt.savefig('loss.png',dpi=300,bbox_inches = 'tight')
+plt.show()
